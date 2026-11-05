@@ -54,10 +54,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake pkg-config clang libclang-dev build-essential libssl-dev
 
-      - name: Check Rust formatting for changed file
+      - name: Format patched Rust and validate diff
         shell: bash
         working-directory: upstream/packages/native-client-rust
-        run: cargo fmt --all -- --check
+        run: |
+          cargo fmt --all
+          git diff --check
 
       - name: Validate sticker URL rules
         shell: bash
