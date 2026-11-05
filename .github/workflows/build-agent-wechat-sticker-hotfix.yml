@@ -1,4 +1,4 @@
-name: Build experimental Agent WeChat v1.5.1 sticker hotfix
+name: Build experimental Agent WeChat v1.5.1 sticker hotfix (Debian 12)
 
 on:
   push:
@@ -13,18 +13,39 @@ permissions:
   contents: read
 
 jobs:
-  build-linux-x64:
-    name: Linux x86_64 GNU / Rust 1.93.1
+  build-debian12-x64:
+    name: Debian 12 / GLIBC 2.36 / Rust 1.93.1
     runs-on: ubuntu-24.04
+    container:
+      image: debian:12
     timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_BUILD_JOBS: "3"
     steps:
+      - name: Install Debian 12 build prerequisites
+        run: |
+          set -euo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get -o Acquire::Retries=3 update
+          apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
+            ca-certificates curl git python3 \
+            cmake pkg-config clang libclang-dev \
+            build-essential libssl-dev binutils file
+          echo "Debian build environment:"
+          cat /etc/os-release
+          getconf GNU_LIBC_VERSION
+          test "$(getconf GNU_LIBC_VERSION)" = "glibc 2.36"
+
       - name: Checkout hotfix repository
         uses: actions/checkout@v4
         with:
           path: hotfix
           persist-credentials: false
 
-      - name: Checkout exact upstream source
+      - name: Checkout exact Agent WeChat v1.5.1
         uses: actions/checkout@v4
         with:
           repository: thisnick/agent-wechat
@@ -32,61 +53,76 @@ jobs:
           path: upstream
           persist-credentials: false
 
-      - name: Verify upstream version and patch applicability
-        shell: bash
+      - name: Verify upstream version and apply patch
         run: |
           set -euo pipefail
           grep -q 'version = "1.5.1"' upstream/packages/native-client-rust/Cargo.toml
           git -C upstream apply --check "$GITHUB_WORKSPACE/hotfix/native-hotfix/sticker-hosts-v1.5.1.patch"
           git -C upstream apply "$GITHUB_WORKSPACE/hotfix/native-hotfix/sticker-hosts-v1.5.1.patch"
           git -C upstream diff --check
+          grep -Fq '"emoji.qpic.cn"' upstream/packages/native-client-rust/crates/wechat-protocol/src/sticker.rs
+          grep -Fq '"mmbiz.qpic.cn"' upstream/packages/native-client-rust/crates/wechat-protocol/src/sticker.rs
+          grep -Fq '"vweixinf.tc.qq.com"' upstream/packages/native-client-rust/crates/wechat-protocol/src/sticker.rs
           git -C upstream diff --stat
 
-      - name: Install pinned Rust toolchain
+      - name: Install pinned Rust 1.93.1
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: "1.93.1"
-          components: rustfmt, clippy
-
-      - name: Install native build prerequisites
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake pkg-config clang libclang-dev build-essential libssl-dev
+          components: rustfmt
 
       - name: Format patched Rust and validate diff
-        shell: bash
         working-directory: upstream/packages/native-client-rust
         run: |
+          set -euo pipefail
           cargo fmt --all
           git diff --check
 
-      - name: Validate sticker URL rules
-        shell: bash
+      - name: Test sticker URL allowlist
         working-directory: upstream/packages/native-client-rust
         run: cargo test --locked -p wechat-protocol --lib sticker
 
-      - name: Build patched native daemon
-        shell: bash
+      - name: Build release wx on Debian 12
         working-directory: upstream/packages/native-client-rust
         run: cargo build --locked --release -p wx-native --bin wx
 
-      - name: Package executable, hashes and provenance
-        shell: bash
+      - name: Verify GLIBC ceiling and run wx on Debian 12
+        run: |
+          set -euo pipefail
+          BIN=upstream/packages/native-client-rust/target/release/wx
+          test -x "$BIN"
+          echo "Runtime environment: $(getconf GNU_LIBC_VERSION)"
+          file "$BIN"
+          ldd "$BIN" > /tmp/wx-ldd.txt
+          cat /tmp/wx-ldd.txt
+          test "$(getconf GNU_LIBC_VERSION)" = "glibc 2.36"
+          objdump -T "$BIN" | grep -oE 'GLIBC_[0-9]+[.][0-9]+' | sort -Vu > /tmp/wx-glibc-versions.txt
+          test -s /tmp/wx-glibc-versions.txt
+          highest="$(tail -n 1 /tmp/wx-glibc-versions.txt)"
+          echo "Highest required GLIBC symbol: $highest"
+          dpkg --compare-versions "${highest#GLIBC_}" le "2.36"
+          "$BIN" --help > /dev/null
+          "$BIN" --json version > /tmp/wx-version.json
+          cat /tmp/wx-version.json
+
+      - name: Package Debian 12 executable and provenance
         run: |
           set -euo pipefail
           mkdir -p dist
-          cp upstream/packages/native-client-rust/target/release/wx dist/wx-v1.5.1-sticker-hotfix-linux-x64-gnu
-          chmod 0755 dist/wx-v1.5.1-sticker-hotfix-linux-x64-gnu
-          (cd dist && sha256sum wx-v1.5.1-sticker-hotfix-linux-x64-gnu > SHA256SUMS.txt)
-          printf 'upstream=thisnick/agent-wechat\nupstream_tag=v1.5.1\nhotfix_commit=%s\nrunner=%s\nrust=%s\n'             "$GITHUB_SHA" "$RUNNER_OS-$RUNNER_ARCH" "$(rustc --version)" > dist/BUILD-PROVENANCE.txt
-          file dist/wx-v1.5.1-sticker-hotfix-linux-x64-gnu
-          ./dist/wx-v1.5.1-sticker-hotfix-linux-x64-gnu --help > /dev/null
+          cp upstream/packages/native-client-rust/target/release/wx dist/wx-v1.5.1-sticker-hotfix-debian12-x64-gnu
+          chmod 0755 dist/wx-v1.5.1-sticker-hotfix-debian12-x64-gnu
+          cp /tmp/wx-version.json dist/VERSION.json
+          cp /tmp/wx-ldd.txt dist/LDDS.txt
+          cp /tmp/wx-glibc-versions.txt dist/GLIBC-SYMBOLS.txt
+          cp upstream/packages/native-client-rust/crates/wechat-protocol/src/sticker.rs dist/PATCHED-sticker.rs
+          (cd dist && sha256sum wx-v1.5.1-sticker-hotfix-debian12-x64-gnu > SHA256SUMS.txt)
+          printf 'upstream=thisnick/agent-wechat\nupstream_tag=v1.5.1\nhotfix_commit=%s\ncontainer=debian:12\ncontainer_glibc=%s\nrust=%s\n' \
+            "$GITHUB_SHA" "$(getconf GNU_LIBC_VERSION)" "$(rustc --version)" > dist/BUILD-PROVENANCE.txt
 
-      - name: Upload experimental binary artifact
+      - name: Upload Debian 12 experimental executable
         uses: actions/upload-artifact@v4
         with:
-          name: wx-v1.5.1-sticker-hotfix-linux-x64-gnu-UNVERIFIED
+          name: wx-v1.5.1-sticker-hotfix-debian12-glibc236-UNVERIFIED
           path: dist/*
           if-no-files-found: error
           retention-days: 14
