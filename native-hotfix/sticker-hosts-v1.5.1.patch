@@ -1,7 +1,7 @@
 diff --git a/packages/native-client-rust/crates/wechat-protocol/src/sticker.rs b/packages/native-client-rust/crates/wechat-protocol/src/sticker.rs
 --- a/packages/native-client-rust/crates/wechat-protocol/src/sticker.rs
 +++ b/packages/native-client-rust/crates/wechat-protocol/src/sticker.rs
-@@ -25,9 +25,14 @@ pub(super) fn public_ip(ip: IpAddr) -> bool {
+@@ -25,9 +25,15 @@ pub(super) fn public_ip(ip: IpAddr) -> bool {
  }
  /// Sticker bytes come from Tencent CDN hosts. Classic stored and pack emoji
 -/// carry a `wxapp.tc.qq.com` source, while shared stickers use
@@ -18,10 +18,11 @@ diff --git a/packages/native-client-rust/crates/wechat-protocol/src/sticker.rs b
 +    "emoji.qpic.cn",
 +    "mmbiz.qpic.cn",
 +    "vweixinf.tc.qq.com",
++    "snsvideo.hk.wechat.com",
 +];
  
  pub fn validate_sticker_url(value: &str) -> Result<reqwest::Url> {
-@@ -41,16 +46,27 @@ pub fn validate_sticker_url(value: &str) -> Result<reqwest::Url> {
+@@ -41,16 +47,27 @@ pub fn validate_sticker_url(value: &str) -> Result<reqwest::Url> {
      );
      let url =
          reqwest::Url::parse(value).map_err(|_| anyhow::anyhow!("sticker_source_not_allowed"))?;
@@ -59,19 +60,24 @@ diff --git a/packages/native-client-rust/crates/wechat-protocol/src/sticker.rs b
 +        admissible,
          "sticker_source_not_allowed"
      );
-@@ -125,4 +141,7 @@ mod tests {
+@@ -125,4 +142,9 @@ mod tests {
              "https://snsvideo.c2c.wechat.com/x",
              "http://wxapp.tc.qq.com/275/20304/stodownload?m=318341a160b08b297892a0e5741cc553&filekey=3035020101042130&bizid=1023",
              "https://wxapp.tc.qq.com:443/x",
 +            "https://emoji.qpic.cn/wx_emoji/fixture",
 +            "https://mmbiz.qpic.cn/mmemoticon/fixture",
 +            "http://vweixinf.tc.qq.com/110/20401/stodownload?m=test",
++            "http://snsvideo.hk.wechat.com/emoji",
++            "https://snsvideo.hk.wechat.com/emoji",
          ] {
-@@ -136,4 +155,7 @@ mod tests {
+@@ -136,4 +158,10 @@ mod tests {
              "https://wxapp.tc.qq.com.cn/x",
              "http://evil.tc.qq.com/x",
              "http://wxapp.tc.qq.com:8080/x",
 +            "https://mmbiz.qpic.cn.evil/x",
 +            "http://emoji.qpic.cn:8080/x",
 +            "https://evil.mmbiz.qpic.cn/x",
++            "https://snsvideo.hk.wechat.com.evil/x",
++            "http://evil.snsvideo.hk.wechat.com/x",
++            "http://snsvideo.hk.wechat.com:8080/x",
          ] {

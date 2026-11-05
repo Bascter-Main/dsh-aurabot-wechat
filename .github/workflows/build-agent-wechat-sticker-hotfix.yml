@@ -63,6 +63,7 @@ jobs:
           grep -Fq '"emoji.qpic.cn"' upstream/packages/native-client-rust/crates/wechat-protocol/src/sticker.rs
           grep -Fq '"mmbiz.qpic.cn"' upstream/packages/native-client-rust/crates/wechat-protocol/src/sticker.rs
           grep -Fq '"vweixinf.tc.qq.com"' upstream/packages/native-client-rust/crates/wechat-protocol/src/sticker.rs
+          grep -Fq '"snsvideo.hk.wechat.com"' upstream/packages/native-client-rust/crates/wechat-protocol/src/sticker.rs
           git -C upstream diff --stat
 
       - name: Install pinned Rust 1.93.1
@@ -109,20 +110,20 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          cp upstream/packages/native-client-rust/target/release/wx dist/wx-v1.5.1-sticker-hotfix-debian12-x64-gnu
-          chmod 0755 dist/wx-v1.5.1-sticker-hotfix-debian12-x64-gnu
+          cp upstream/packages/native-client-rust/target/release/wx dist/wx-v1.5.1-sticker-hotfix-debian12-x64-gnu-hk
+          chmod 0755 dist/wx-v1.5.1-sticker-hotfix-debian12-x64-gnu-hk
           cp /tmp/wx-version.json dist/VERSION.json
           cp /tmp/wx-ldd.txt dist/LDDS.txt
           cp /tmp/wx-glibc-versions.txt dist/GLIBC-SYMBOLS.txt
           cp upstream/packages/native-client-rust/crates/wechat-protocol/src/sticker.rs dist/PATCHED-sticker.rs
-          (cd dist && sha256sum wx-v1.5.1-sticker-hotfix-debian12-x64-gnu > SHA256SUMS.txt)
+          (cd dist && sha256sum wx-v1.5.1-sticker-hotfix-debian12-x64-gnu-hk > SHA256SUMS.txt)
           printf 'upstream=thisnick/agent-wechat\nupstream_tag=v1.5.1\nhotfix_commit=%s\ncontainer=debian:12\ncontainer_glibc=%s\nrust=%s\n' \
             "$GITHUB_SHA" "$(getconf GNU_LIBC_VERSION)" "$(rustc --version)" > dist/BUILD-PROVENANCE.txt
 
       - name: Upload Debian 12 experimental executable
         uses: actions/upload-artifact@v4
         with:
-          name: wx-v1.5.1-sticker-hotfix-debian12-glibc236-UNVERIFIED
+          name: wx-v1.5.1-sticker-hotfix-debian12-glibc236-hk-UNVERIFIED
           path: dist/*
           if-no-files-found: error
           retention-days: 14

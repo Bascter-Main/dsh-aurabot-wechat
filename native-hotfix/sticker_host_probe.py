@@ -7,7 +7,7 @@ import re
 import sys
 from urllib.parse import urlsplit
 
-ALLOWED = {"snsvideo.c2c.wechat.com", "wxapp.tc.qq.com", "emoji.qpic.cn", "mmbiz.qpic.cn", "vweixinf.tc.qq.com"}
+ALLOWED = {"snsvideo.c2c.wechat.com", "wxapp.tc.qq.com", "emoji.qpic.cn", "mmbiz.qpic.cn", "vweixinf.tc.qq.com", "snsvideo.hk.wechat.com"}
 ATTR = re.compile(r'\b(cdnurl|thumburl|encrypturl)\s*=\s*(["\'])(.*?)\2', re.I | re.S)
 
 def main() -> int:

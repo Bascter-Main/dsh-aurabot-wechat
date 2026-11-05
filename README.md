@@ -11,7 +11,9 @@ The `build/sticker-hotfix-v1.5.1` branch contains:
 - `native-hotfix/sticker-hosts-v1.5.1.patch` — targeted Rust allowlist change for candidate Tencent sticker CDN hostnames and opt-in hostname-only diagnostics.
 - `.github/workflows/build-agent-wechat-sticker-hotfix.yml` — checks out the exact upstream `v1.5.1` tag, applies the patch, runs Rust tests, builds a Linux x86_64 GNU `wx` executable, and uploads the binary and SHA-256 digest as a workflow artifact.
 
-**Not production verified:** the failing sticker's actual source hostname has not been confirmed. Never replace a working native binary without backing up the existing daemon configuration and checking account/server identity after restart. The patch does not disable DNS/public-IP checks, redirect restrictions or source-length/MD5 integrity checks.
+**Live diagnostic:** a failing dynamic store sticker identified the exact source host `snsvideo.hk.wechat.com` on 2026-11-06. The patch now allowlists this exact hostname. The NEW binary and real animated sticker download have not yet passed acceptance. Never replace a working native binary without backing up the existing daemon configuration and checking account/server identity after restart. The patch does not disable DNS/public-IP checks, redirect restrictions or source-length/MD5 integrity checks.
+
+**Build compatibility:** Debian 12 with GLIBC 2.36; the workflow runs `wx --json version`, checks GLIBC symbols, runs sticker URL tests, and uploads an artifact with an `-hk-UNVERIFIED` suffix. The previous artifact without the `-hk` suffix must not be mistaken for the updated build.
 
 Agent WeChat upstream: https://github.com/thisnick/agent-wechat
 
