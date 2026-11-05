@@ -1,0 +1,90 @@
+name: Build experimental Agent WeChat v1.5.1 sticker hotfix
+
+on:
+  push:
+    branches:
+      - build/sticker-hotfix-v1.5.1
+    paths:
+      - ".github/workflows/build-agent-wechat-sticker-hotfix.yml"
+      - "native-hotfix/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux-x64:
+    name: Linux x86_64 GNU / Rust 1.93.1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout hotfix repository
+        uses: actions/checkout@v4
+        with:
+          path: hotfix
+          persist-credentials: false
+
+      - name: Checkout exact upstream source
+        uses: actions/checkout@v4
+        with:
+          repository: thisnick/agent-wechat
+          ref: v1.5.1
+          path: upstream
+          persist-credentials: false
+
+      - name: Verify upstream version and patch applicability
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'version = "1.5.1"' upstream/packages/native-client-rust/Cargo.toml
+          git -C upstream apply --check "$GITHUB_WORKSPACE/hotfix/native-hotfix/sticker-hosts-v1.5.1.patch"
+          git -C upstream apply "$GITHUB_WORKSPACE/hotfix/native-hotfix/sticker-hosts-v1.5.1.patch"
+          git -C upstream diff --check
+          git -C upstream diff --stat
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.93.1"
+          components: rustfmt, clippy
+
+      - name: Install native build prerequisites
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake pkg-config clang libclang-dev build-essential libssl-dev
+
+      - name: Check Rust formatting for changed file
+        shell: bash
+        working-directory: upstream/packages/native-client-rust
+        run: cargo fmt --all -- --check
+
+      - name: Validate sticker URL rules
+        shell: bash
+        working-directory: upstream/packages/native-client-rust
+        run: cargo test --locked -p wechat-protocol --lib sticker
+
+      - name: Build patched native daemon
+        shell: bash
+        working-directory: upstream/packages/native-client-rust
+        run: cargo build --locked --release -p wx-native --bin wx
+
+      - name: Package executable, hashes and provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp upstream/packages/native-client-rust/target/release/wx dist/wx-v1.5.1-sticker-hotfix-linux-x64-gnu
+          chmod 0755 dist/wx-v1.5.1-sticker-hotfix-linux-x64-gnu
+          (cd dist && sha256sum wx-v1.5.1-sticker-hotfix-linux-x64-gnu > SHA256SUMS.txt)
+          printf 'upstream=thisnick/agent-wechat\nupstream_tag=v1.5.1\nhotfix_commit=%s\nrunner=%s\nrust=%s\n'             "$GITHUB_SHA" "$RUNNER_OS-$RUNNER_ARCH" "$(rustc --version)" > dist/BUILD-PROVENANCE.txt
+          file dist/wx-v1.5.1-sticker-hotfix-linux-x64-gnu
+          ./dist/wx-v1.5.1-sticker-hotfix-linux-x64-gnu --help > /dev/null
+
+      - name: Upload experimental binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wx-v1.5.1-sticker-hotfix-linux-x64-gnu-UNVERIFIED
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
